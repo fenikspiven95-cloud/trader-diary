@@ -64,6 +64,13 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
 .sheet h2 button{background:none;border:0;color:var(--muted);font-size:22px;cursor:pointer}
 .res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:14px}
 .warn{color:#ffb84d;font-size:13px;margin-top:8px}
+.chk{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:8px;cursor:pointer;font-size:15px}
+.chk .bx{width:24px;height:24px;border-radius:7px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:14px}
+.chk.on .bx{background:var(--green);border-color:var(--green)}
+.chk.on span{color:var(--muted)}
+.verdict{border-radius:12px;padding:12px;margin-bottom:12px;font-weight:600;text-align:center}
+.verdict.ok{background:var(--gbg);color:var(--green)} .verdict.no{background:#2c2618;color:#ffb84d}
+.btn.sec{background:var(--card2);color:var(--text);border:1px solid var(--line);margin-top:8px}
 .toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:#24324a;padding:10px 16px;border-radius:10px;font-size:14px;display:none;z-index:20}
 </style>
 </head>
@@ -103,11 +110,20 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue)}
   <div id="calcRes"></div>
 </div></section>
 
+<!-- Чек-лист -->
+<section class="view" id="v-check"><div class="wrap">
+  <header><h1>Чек-лист перед входом</h1></header>
+  <div id="verdict" class="verdict no"></div>
+  <div id="chkList"></div>
+  <button class="btn sec" onclick="resetCheck()">🔄 Сбросить</button>
+</div></section>
+
 <button class="fab" id="fab" onclick="openAdd()">+</button>
 <nav>
   <button class="on" data-v="journal"><span>📒</span>Журнал</button>
   <button data-v="stats"><span>📊</span>Статистика</button>
   <button data-v="calc"><span>🧮</span>Расчёт</button>
+  <button data-v="check"><span>✅</span>Чек-лист</button>
 </nav>
 
 <!-- Окно сделки -->
@@ -276,7 +292,10 @@ function renderStats(){
     <div class="box"><h3>Всего</h3>
       <div class="row"><span>Сделок</span><span>${p.length} (${wins.length} / ${loss.length})</span></div>
       <div class="row"><span>Лучшая / худшая</span><span>${sfmt(Math.max(...p))} / ${sfmt(Math.min(...p))}</span></div>
-    </div>`;
+      <div class="row"><span>Результат к депозиту ${fmt(cfg.deposit)}</span><span class="${cls(total)}">${(total>0?'+':'')+fmt(total/cfg.deposit*100,1)}%</span></div>
+    </div>
+    <button class="btn sec" onclick="exportCSV(false)">📋 Скопировать журнал (CSV для Excel)</button>
+    <button class="btn sec" onclick="exportCSV(true)">⬇️ Скачать CSV</button>`;
   drawCurve(document.getElementById('eq'), curve);
 }
 function drawCurve(cv, ys){
@@ -367,11 +386,55 @@ async function delTrade(){
   trades=trades.filter(x=>x.id!==id); haptic('warning'); closeSheet(); renderAll(); toast('Удалено');
 }
 
+/* ---------- чек-лист ---------- */
+const CHECK = [
+  'Сделка по тренду старшего таймфрейма',
+  'Есть сетап по моей стратегии',
+  'Стоп-лосс определён до входа',
+  'Риск не выше лимита на сделку',
+  'Прибыль/риск не хуже 1:2',
+  'Нет важных новостей в ближайший час',
+  'Я спокоен и не отыгрываюсь',
+];
+let checked = new Set();
+function renderCheck(){
+  document.getElementById('chkList').innerHTML = CHECK.map((t,i)=>`<div class="chk ${checked.has(i)?'on':''}" onclick="toggleCheck(${i})"><div class="bx">${checked.has(i)?'✓':''}</div><span>${t}</span></div>`).join('');
+  const all = checked.size===CHECK.length, el=document.getElementById('verdict');
+  el.className='verdict '+(all?'ok':'no');
+  el.textContent = all ? '✅ Все пункты выполнены — вход по плану' : `Выполнено ${checked.size} из ${CHECK.length}. Пока не все — лучше подождать`;
+}
+function toggleCheck(i){ checked.has(i)?checked.delete(i):checked.add(i); try{ tg.HapticFeedback.selectionChanged() }catch(e){} renderCheck() }
+function resetCheck(){ checked.clear(); renderCheck() }
+
+/* ---------- экспорт ---------- */
+function buildCSV(){
+  const head=['Дата','Инструмент','Направление','Вход','Стоп','Выход','Объём','P&L','R','Комментарий'];
+  const q=x=>{ x=x==null?'':String(x); return /[;"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x };
+  const dec=x=>x==null?'':String(x).replace('.',',');
+  return [head.join(';')].concat(trades.map(t=>[ruDate(t.d),t.s,t.dir==='L'?'Long':'Short',dec(t.e),dec(t.st),dec(t.x),dec(t.q),dec(t.p),dec(t.r),t.n].map(q).join(';'))).join('\n');
+}
+async function exportCSV(download){
+  const csv=buildCSV();
+  if(download){
+    try{
+      const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));
+      a.download='journal_'+today()+'.csv'; document.body.appendChild(a); a.click(); a.remove(); toast('Файл скачивается');
+    }catch(e){ toast('Скачивание недоступно, используй копирование') }
+    return;
+  }
+  try{ await navigator.clipboard.writeText(csv); toast('Скопировано. Вставь в Excel') }
+  catch(e){
+    const ta=document.createElement('textarea'); ta.value=csv; document.body.appendChild(ta); ta.select();
+    const ok=document.execCommand('copy'); ta.remove(); toast(ok?'Скопировано. Вставь в Excel':'Не удалось скопировать');
+  }
+}
+
 /* ---------- навигация ---------- */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+b.dataset.v));
-  document.getElementById('fab').style.display=b.dataset.v==='calc'?'none':'block';
+  document.getElementById('fab').style.display=(b.dataset.v==='calc'||b.dataset.v==='check')?'none':'block';
+  if(b.dataset.v==='check') renderCheck();
   if(b.dataset.v==='stats') renderStats();
   window.scrollTo(0,0);
 });
