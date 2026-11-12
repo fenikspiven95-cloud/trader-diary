@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Дневник трейдера</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#0f1520; --card:#171f2c; --card2:#1c2533; --line:#263042;
+  --text:#e9eef6; --muted:#8592a6; --green:#2ecc71; --red:#ff4d5e;
+  --blue:#4f8cff; --gbg:#173a2a; --rbg:#3a1a24;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+body{padding-bottom:90px;min-height:100vh}
+.wrap{padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+header h1{font-size:19px;font-weight:700}
+header small{color:var(--muted);font-size:13px}
+.total{font-size:19px;font-weight:700}
+.pos{color:var(--green)} .neg{color:var(--red)} .zero{color:var(--muted)}
+.tip{background:linear-gradient(135deg,#132036,#14202a);border:1px solid #23395a;border-radius:14px;padding:12px 14px;margin-bottom:16px;position:relative}
+.tip b{color:var(--blue);font-size:12px;letter-spacing:.5px}
+.tip p{margin-top:6px;font-size:14px}
+.tip .x{position:absolute;right:10px;top:8px;color:var(--muted);background:none;border:0;font-size:18px;cursor:pointer}
+.day{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-weight:600;margin:14px 2px 8px}
+.trade{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer}
+.ico{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.ico.L{background:var(--gbg);color:var(--green)} .ico.S{background:var(--rbg);color:var(--red)}
+.trade .sym{flex:1;font-weight:700}
+.trade .sym small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.trade .pl{font-weight:700}
+.empty{text-align:center;color:var(--muted);padding:50px 20px}
+.fab{position:fixed;right:18px;bottom:86px;width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;border:0;font-size:30px;box-shadow:0 6px 20px rgba(79,140,255,.45);cursor:pointer}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#121a26;border-top:1px solid var(--line);padding:8px 0 12px}
+nav button{flex:1;background:none;border:0;color:var(--muted);font-size:12px;cursor:pointer}
+nav button span{display:block;font-size:22px;margin-bottom:2px}
+nav button.on{color:var(--text);font-weight:600}
+.view{display:none} .view.on{display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat small{color:var(--muted);font-size:12px} .stat div{font-size:18px;font-weight:700;margin-top:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.box h3{font-size:14px;margin-bottom:8px}
+canvas{width:100%;height:180px;display:block}
+.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.row:last-child{border:0}
+label{display:block;color:var(--muted);font-size:12px;margin:10px 0 4px}
+input,textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px;font-size:16px;font-family:inherit}
+input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg{display:flex;gap:8px}
+.seg button{flex:1;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--muted);font-weight:700;font-size:15px;cursor:pointer}
+.seg button.L.on{background:var(--gbg);color:var(--green);border-color:var(--green)}
+.seg button.S.on{background:var(--rbg);color:var(--red);border-color:var(--red)}
+.btn{width:100%;padding:14px;border-radius:12px;border:0;background:var(--blue);color:#fff;font-size:16px;font-weight:700;margin-top:16px;cursor:pointer}
+.btn.ghost{background:var(--card2);color:var(--red);border:1px solid var(--line)}
+.hint{color:var(--muted);font-size:12px;margin-top:4px}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:10}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92vh;overflow:auto;background:var(--bg);border-radius:18px 18px 0 0;padding:16px 16px 24px;transform:translateY(100%);transition:transform .25s,visibility .25s;visibility:hidden;z-index:11}
+.sheet.on{transform:none;visibility:visible}
+.sheet h2{font-size:17px;margin-bottom:4px;display:flex;justify-content:space-between}
+.sheet h2 button{background:none;border:0;color:var(--muted);font-size:22px;cursor:pointer}
+.res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:14px}
+.warn{color:#ffb84d;font-size:13px;margin-top:8px}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:#24324a;padding:10px 16px;border-radius:10px;font-size:14px;display:none;z-index:20}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- Журнал -->
+<section class="view on" id="v-journal"><div class="wrap">
+  <header>
+    <div><h1>Дневник трейдера</h1><small id="uname">Фокус</small></div>
+    <div class="total" id="total">0</div>
+  </header>
+  <div class="tip" id="tip"><button class="x" onclick="closeTip()">×</button><b id="tipTitle"></b><p id="tipText"></p></div>
+  <div id="list"></div>
+</div></section>
+
+<!-- Статистика -->
+<section class="view" id="v-stats"><div class="wrap">
+  <header><h1>Статистика</h1></header>
+  <div id="statsBody"></div>
+</div></section>
+
+<!-- Расчёт -->
+<section class="view" id="v-calc"><div class="wrap">
+  <header><h1>Расчёт позиции</h1></header>
+  <div class="two">
+    <div><label>Депозит</label><input id="c-dep" inputmode="decimal"></div>
+    <div><label>Риск, %</label><input id="c-risk" inputmode="decimal"></div>
+  </div>
+  <label>Цена входа</label><input id="c-entry" inputmode="decimal" placeholder="1.08500">
+  <div class="two">
+    <div><label>Стоп-лосс</label><input id="c-stop" inputmode="decimal" placeholder="1.08200"></div>
+    <div><label>Тейк-профит</label><input id="c-take" inputmode="decimal" placeholder="необязательно"></div>
+  </div>
+  <label>Стоимость 1 пункта цены на 1 единицу</label><input id="c-mult" inputmode="decimal" value="1">
+  <div class="hint">Для акций и крипты 1. Для форекса в лотах: 100000 (стандартный лот).</div>
+  <div id="calcRes"></div>
+</div></section>
+
+<button class="fab" id="fab" onclick="openAdd()">+</button>
+<nav>
+  <button class="on" data-v="journal"><span>📒</span>Журнал</button>
+  <button data-v="stats"><span>📊</span>Статистика</button>
+  <button data-v="calc"><span>🧮</span>Расчёт</button>
+</nav>
+
+<!-- Окно сделки -->
+<div class="sheet-bg" id="bg" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <h2><span id="sTitle">Новая сделка</span><button onclick="closeSheet()">×</button></h2>
+  <input type="hidden" id="f-id">
+  <div class="two">
+    <div><label>Инструмент</label><input id="f-sym" placeholder="EUR/USD" autocapitalize="characters"></div>
+    <div><label>Дата</label><input id="f-date" type="date"></div>
+  </div>
+  <label>Направление</label>
+  <div class="seg"><button class="L on" data-d="L">▲ Long</button><button class="S" data-d="S">▼ Short</button></div>
+  <div class="two">
+    <div><label>Вход</label><input id="f-entry" inputmode="decimal"></div>
+    <div><label>Выход</label><input id="f-exit" inputmode="decimal"></div>
+  </div>
+  <div class="two">
+    <div><label>Стоп</label><input id="f-stop" inputmode="decimal" placeholder="для расчёта R"></div>
+    <div><label>Объём</label><input id="f-qty" inputmode="decimal"></div>
+  </div>
+  <label>Результат (P&amp;L)</label><input id="f-pl" inputmode="decimal" placeholder="-400 или 720">
+  <div class="hint" id="f-auto">Можно ввести вручную или заполнить вход, выход и объём — посчитается само.</div>
+  <label>Комментарий</label><textarea id="f-note" rows="2" placeholder="Почему вошёл, что пошло не так"></textarea>
+  <button class="btn" onclick="saveTrade()">Сохранить</button>
+  <button class="btn ghost" id="delBtn" onclick="delTrade()" style="display:none">Удалить сделку</button>
+</div>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+const useCloud = !!(tg && tg.initData && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9'));
+
+/* ---------- хранилище ---------- */
+const LS = 'td_';
+const store = {
+  keys(){ return new Promise(res=>{
+    if(useCloud) return tg.CloudStorage.getKeys((e,k)=>res(e?[]:k));
+    try{ res(Object.keys(localStorage).filter(k=>k.startsWith(LS)).map(k=>k.slice(LS.length))) }catch(e){ res([]) }
+  })},
+  getMany(keys){ return new Promise(res=>{
+    if(!keys.length) return res({});
+    if(useCloud){
+      const out={}; let left=Math.ceil(keys.length/100);
+      for(let i=0;i<keys.length;i+=100){
+        tg.CloudStorage.getItems(keys.slice(i,i+100),(e,v)=>{ if(!e) Object.assign(out,v); if(--left===0) res(out) });
+      }
+      return;
+    }
+    const out={}; try{ keys.forEach(k=>out[k]=localStorage.getItem(LS+k)) }catch(e){} res(out);
+  })},
+  set(k,v){ return new Promise(res=>{
+    if(useCloud) return tg.CloudStorage.setItem(k,v,(e)=>res(!e));
+    try{ localStorage.setItem(LS+k,v); res(true) }catch(e){ res(false) }
+  })},
+  del(k){ return new Promise(res=>{
+    if(useCloud) return tg.CloudStorage.removeItem(k,()=>res(true));
+    try{ localStorage.removeItem(LS+k) }catch(e){} res(true);
+  })}
+};
+
+/* ---------- состояние ---------- */
+let trades = [];
+let cfg = {deposit:1000, risk:1, tipHidden:''};
+let dir = 'L';
+
+const fmt = (x,d=2)=> new Intl.NumberFormat('ru-RU',{maximumFractionDigits:d}).format(x);
+const sfmt = x => (x>0?'+':'') + fmt(x);
+const cls = x => x>0?'pos':(x<0?'neg':'zero');
+const num = s => { const v=parseFloat(String(s||'').replace(/\s/g,'').replace(',','.')); return isNaN(v)?null:v };
+const today = ()=> new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const ruDate = d => d.split('-').reverse().join('.');
+const esc = s => String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.style.display='block'; clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none',2000) }
+function haptic(type){ try{ tg.HapticFeedback.notificationOccurred(type) }catch(e){} }
+
+async function load(){
+  const keys = await store.keys();
+  const data = await store.getMany(keys.filter(k=>k.startsWith('t_')||k==='cfg'));
+  if(data.cfg){ try{ Object.assign(cfg, JSON.parse(data.cfg)) }catch(e){} }
+  trades = Object.entries(data).filter(([k,v])=>k.startsWith('t_')&&v).map(([k,v])=>{ try{return JSON.parse(v)}catch(e){return null} }).filter(Boolean);
+  trades.sort((a,b)=> a.d===b.d ? a.id-b.id : a.d<b.d?-1:1);
+  renderAll();
+}
+const saveCfg = ()=> store.set('cfg', JSON.stringify(cfg));
+
+/* ---------- советы ---------- */
+const TIPS = [
+  'Винрейт сам по себе ни о чём: 90% побед по 100 и один убыток на 2000 — это минус. Смотри на профит-фактор.',
+  'Стоп ставится до входа. Если не знаешь, где выйдешь при ошибке, — сделки нет.',
+  'Рискуй одинаковым процентом депозита в каждой сделке. Так статистика будет честной.',
+  'После двух убытков подряд сделай паузу. Отыгрыш почти всегда заканчивается третьим.',
+  'Соотношение 1:2 даёт плюс даже при винрейте 40%.',
+  'Записывай причину входа сразу, а не после закрытия. Иначе память подстроится под результат.',
+  'Не двигай стоп дальше от цены. Двигать можно только в сторону безубытка.',
+  'Пропущенная сделка ничего не стоит. Плохая сделка стоит денег.',
+  'Раз в неделю перечитывай журнал: ищи ошибки, которые повторяются.',
+  'Торгуй меньше, но по своему сетапу. Скука — не причина открывать позицию.',
+  'Новости с высокой важностью могут пробить любой стоп. Проверяй календарь.',
+  'Максимальная просадка важнее максимальной прибыли: из минус 50% нужно сделать плюс 100%.',
+  'Фиксируй частично, если не уверен, но заранее реши, на каком уровне.',
+  'Если сделка не по плану, закрой её, даже если она в плюсе. Иначе закрепишь плохую привычку.',
+  'Матожидание в R показывает, сколько ты в среднем зарабатываешь на каждый рубль риска.',
+];
+function renderTip(){
+  const idx = Math.floor(Date.now()/86400000) % TIPS.length;
+  const box = document.getElementById('tip');
+  if(cfg.tipHidden===today()){ box.style.display='none'; return }
+  document.getElementById('tipTitle').textContent = '💡 СОВЕТ ДНЯ #' + (idx+1);
+  document.getElementById('tipText').textContent = TIPS[idx];
+}
+function closeTip(){ cfg.tipHidden=today(); saveCfg(); document.getElementById('tip').style.display='none' }
+
+/* ---------- журнал ---------- */
+function renderJournal(){
+  const total = trades.reduce((s,t)=>s+t.p,0);
+  const el = document.getElementById('total'); el.textContent = sfmt(total); el.className='total '+cls(total);
+  const list = document.getElementById('list');
+  if(!trades.length){ list.innerHTML='<div class="empty">Сделок пока нет.<br>Нажми «+», чтобы добавить первую.</div>'; return }
+  const days = {};
+  trades.forEach(t=>(days[t.d]=days[t.d]||[]).push(t));
+  list.innerHTML = Object.keys(days).sort().reverse().map(d=>{
+    const ts = days[d].slice().reverse(); const sum = ts.reduce((s,t)=>s+t.p,0);
+    return `<div class="day"><span>${ruDate(d)}</span><span class="${cls(sum)}">${sfmt(sum)}</span></div>` +
+      ts.map(t=>`<div class="trade" onclick="openEdit(${t.id})">
+        <div class="ico ${t.dir}">${t.dir==='L'?'▲':'▼'}</div>
+        <div class="sym">${esc(t.s)}${t.n?`<small>${esc(t.n.slice(0,40))}</small>`:''}</div>
+        <div class="pl ${cls(t.p)}">${sfmt(t.p)}${t.r!=null?`<small style="display:block;text-align:right;color:var(--muted);font-weight:400;font-size:12px">${t.r>0?'+':''}${fmt(t.r)}R</small>`:''}</div>
+      </div>`).join('');
+  }).join('');
+}
+
+/* ---------- статистика ---------- */
+function renderStats(){
+  const box = document.getElementById('statsBody');
+  if(!trades.length){ box.innerHTML='<div class="empty">Добавь сделки, и здесь появится статистика.</div>'; return }
+  const p = trades.map(t=>t.p), wins=p.filter(x=>x>0), loss=p.filter(x=>x<0);
+  const sum=a=>a.reduce((s,x)=>s+x,0);
+  const total=sum(p), gl=Math.abs(sum(loss));
+  const pf = gl ? sum(wins)/gl : null;
+  const rs = trades.filter(t=>t.r!=null).map(t=>t.r);
+  let eq=0,peak=0,mdd=0,streak=0,cur=0; const curve=[0];
+  p.forEach(x=>{ eq+=x; curve.push(eq); peak=Math.max(peak,eq); mdd=Math.max(mdd,peak-eq); cur=x<0?cur+1:0; streak=Math.max(streak,cur) });
+  const bySym={}; trades.forEach(t=>{ bySym[t.s]=bySym[t.s]||{n:0,p:0,w:0}; bySym[t.s].n++; bySym[t.s].p+=t.p; if(t.p>0)bySym[t.s].w++ });
+  const L=trades.filter(t=>t.dir==='L'), S=trades.filter(t=>t.dir==='S');
+  const st=(t,v,c='')=>`<div class="stat"><small>${t}</small><div class="${c}">${v}</div></div>`;
+  box.innerHTML = `
+    <div class="grid">
+      ${st('Итого P&L', sfmt(total), cls(total))}
+      ${st('Винрейт', fmt(wins.length/p.length*100,1)+'%')}
+      ${st('Профит-фактор', pf==null?'∞':fmt(pf), pf!=null&&pf<1?'neg':'pos')}
+      ${st('Матожидание', rs.length?(sum(rs)/rs.length>0?'+':'')+fmt(sum(rs)/rs.length)+'R':'—')}
+      ${st('Средняя прибыль', wins.length?'+'+fmt(sum(wins)/wins.length):'—','pos')}
+      ${st('Средний убыток', loss.length?fmt(sum(loss)/loss.length):'—','neg')}
+      ${st('Макс. просадка', mdd?'-'+fmt(mdd):'0','neg')}
+      ${st('Серия убытков', streak)}
+    </div>
+    <div class="box"><h3>Кривая доходности</h3><canvas id="eq"></canvas></div>
+    <div class="box"><h3>По направлению</h3>
+      <div class="row"><span>▲ Long (${L.length})</span><span class="${cls(sum(L.map(t=>t.p)))}">${sfmt(sum(L.map(t=>t.p)))}</span></div>
+      <div class="row"><span>▼ Short (${S.length})</span><span class="${cls(sum(S.map(t=>t.p)))}">${sfmt(sum(S.map(t=>t.p)))}</span></div>
+    </div>
+    <div class="box"><h3>По инструментам</h3>
+      ${Object.entries(bySym).sort((a,b)=>b[1].p-a[1].p).map(([s,v])=>`<div class="row"><span>${esc(s)} <small style="color:var(--muted)">${v.n} сд., ${fmt(v.w/v.n*100,0)}%</small></span><span class="${cls(v.p)}">${sfmt(v.p)}</span></div>`).join('')}
+    </div>
+    <div class="box"><h3>Всего</h3>
+      <div class="row"><span>Сделок</span><span>${p.length} (${wins.length} / ${loss.length})</span></div>
+      <div class="row"><span>Лучшая / худшая</span><span>${sfmt(Math.max(...p))} / ${sfmt(Math.min(...p))}</span></div>
+    </div>`;
+  drawCurve(document.getElementById('eq'), curve);
+}
+function drawCurve(cv, ys){
+  const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  cv.width=w*dpr; cv.height=h*dpr; const c=cv.getContext('2d'); c.scale(dpr,dpr);
+  const min=Math.min(0,...ys), max=Math.max(0,...ys), pad=8, rng=(max-min)||1;
+  const X=i=>pad+i*(w-2*pad)/Math.max(1,ys.length-1), Y=v=>h-pad-(v-min)*(h-2*pad)/rng;
+  c.strokeStyle='#33405a'; c.setLineDash([4,4]); c.beginPath(); c.moveTo(pad,Y(0)); c.lineTo(w-pad,Y(0)); c.stroke(); c.setLineDash([]);
+  const last=ys[ys.length-1], col=last>=0?'#2ecc71':'#ff4d5e';
+  const g=c.createLinearGradient(0,0,0,h); g.addColorStop(0,col+'55'); g.addColorStop(1,col+'00');
+  c.beginPath(); ys.forEach((v,i)=>i?c.lineTo(X(i),Y(v)):c.moveTo(X(i),Y(v))); c.lineTo(X(ys.length-1),Y(0)); c.lineTo(X(0),Y(0)); c.fillStyle=g; c.fill();
+  c.beginPath(); ys.forEach((v,i)=>i?c.lineTo(X(i),Y(v)):c.moveTo(X(i),Y(v))); c.strokeStyle=col; c.lineWidth=2; c.stroke();
+}
+
+/* ---------- расчёт ---------- */
+function renderCalcInputs(){ document.getElementById('c-dep').value=cfg.deposit; document.getElementById('c-risk').value=cfg.risk }
+function calc(){
+  const dep=num(v('c-dep')), risk=num(v('c-risk')), e=num(v('c-entry')), s=num(v('c-stop')), t=num(v('c-take')), m=num(v('c-mult'))||1;
+  if(dep&&dep>0&&dep!==cfg.deposit){cfg.deposit=dep;saveCfg()}
+  if(risk&&risk>0&&risk!==cfg.risk){cfg.risk=risk;saveCfg()}
+  const out=document.getElementById('calcRes');
+  if(!(dep>0&&risk>0&&e>0&&s>0)){ out.innerHTML='<div class="hint" style="margin-top:14px">Заполни депозит, риск, вход и стоп.</div>'; return }
+  if(e===s){ out.innerHTML='<div class="warn">Стоп совпадает со входом.</div>'; return }
+  const side=s<e?'Long':'Short', dist=Math.abs(e-s), rm=dep*risk/100, qty=rm/(dist*m), val=qty*e*m;
+  let html=`<div class="res">
+    <div class="row"><span>Направление</span><b class="${side==='Long'?'pos':'neg'}">${side==='Long'?'▲':'▼'} ${side}</b></div>
+    <div class="row"><span>Риск в деньгах</span><b>${fmt(rm)}</b></div>
+    <div class="row"><span>Объём позиции</span><b>${fmt(qty,qty<1?6:2)}</b></div>
+    <div class="row"><span>Стоимость позиции</span><b>${fmt(val)}</b></div>
+    <div class="row"><span>Нужное плечо</span><b>x${fmt(val/dep)}</b></div>
+    <div class="row"><span>Стоп от входа</span><b>${fmt(dist/e*100)}%</b></div>`;
+  if(t){
+    const wrong=(side==='Long'&&t<=e)||(side==='Short'&&t>=e);
+    if(wrong) html+=`</div><div class="warn">⚠️ Тейк стоит не с той стороны от входа.</div>`;
+    else{
+      const rr=Math.abs(t-e)/dist;
+      html+=`<div class="row"><span>Прибыль / риск</span><b class="${rr>=2?'pos':(rr<1.5?'neg':'')}">1 : ${fmt(rr)}</b></div>
+        <div class="row"><span>Прибыль на тейке</span><b class="pos">+${fmt(qty*Math.abs(t-e)*m)}</b></div>
+        <div class="row"><span>Безубыточный винрейт</span><b>${fmt(100/(1+rr),1)}%</b></div></div>`;
+      if(rr<1.5) html+='<div class="warn">⚠️ Соотношение ниже 1:1.5</div>';
+    }
+  } else html+='</div>';
+  out.innerHTML=html;
+}
+const v = id => document.getElementById(id).value;
+['c-dep','c-risk','c-entry','c-stop','c-take','c-mult'].forEach(id=>document.getElementById(id).addEventListener('input',calc));
+
+/* ---------- добавление / редактирование ---------- */
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ setDir(b.dataset.d); autoPL() });
+function setDir(d){ dir=d; document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x.dataset.d===d)) }
+['f-entry','f-exit','f-qty','f-stop'].forEach(id=>document.getElementById(id).addEventListener('input',autoPL));
+function autoPL(){
+  const e=num(v('f-entry')), x=num(v('f-exit')), q=num(v('f-qty'));
+  if(e&&x&&q){ const pl=(x-e)*q*(dir==='L'?1:-1); document.getElementById('f-pl').value=Math.round(pl*100)/100 }
+}
+function fillForm(t){
+  const set=(id,val)=>document.getElementById(id).value=(val==null?'':val);
+  set('f-id',t?t.id:''); set('f-sym',t?t.s:(trades.length?trades[trades.length-1].s:'')); set('f-date',t?t.d:today());
+  set('f-entry',t&&t.e); set('f-exit',t&&t.x); set('f-stop',t&&t.st); set('f-qty',t&&t.q); set('f-pl',t?t.p:''); set('f-note',t&&t.n);
+  setDir(t?t.dir:'L');
+  document.getElementById('sTitle').textContent=t?'Сделка':'Новая сделка';
+  document.getElementById('delBtn').style.display=t?'block':'none';
+  document.getElementById('delBtn').textContent='Удалить сделку';
+}
+function openSheet(){ document.getElementById('bg').style.display='block'; requestAnimationFrame(()=>document.getElementById('sheet').classList.add('on')); try{ tg.BackButton.show() }catch(e){} }
+function closeSheet(){ document.getElementById('sheet').classList.remove('on'); setTimeout(()=>document.getElementById('bg').style.display='none',250); try{ tg.BackButton.hide() }catch(e){} }
+function openAdd(){ fillForm(null); openSheet() }
+function openEdit(id){ fillForm(trades.find(t=>t.id===id)); openSheet() }
+
+async function saveTrade(){
+  const s=v('f-sym').trim().toUpperCase(), p=num(v('f-pl'));
+  if(!s){ toast('Укажи инструмент'); return }
+  if(p==null){ toast('Укажи результат или цены и объём'); return }
+  const id=num(v('f-id'))||Date.now();
+  const e=num(v('f-entry')), st=num(v('f-stop')), q=num(v('f-qty'));
+  let r=null; if(e&&st&&q&&e!==st) r=Math.round(p/(Math.abs(e-st)*q)*100)/100;
+  const t={id,d:v('f-date')||today(),s:s.slice(0,20),dir,p,e,x:num(v('f-exit')),st,q,r,n:v('f-note').trim().slice(0,500)};
+  Object.keys(t).forEach(k=>{ if(t[k]==null||t[k]==='') delete t[k] }); if(r==null) delete t.r;
+  const ok=await store.set('t_'+id, JSON.stringify(t));
+  if(!ok){ toast('Не удалось сохранить'); haptic('error'); return }
+  trades=trades.filter(x=>x.id!==id); trades.push(t); trades.sort((a,b)=> a.d===b.d ? a.id-b.id : a.d<b.d?-1:1);
+  haptic('success'); closeSheet(); renderAll(); toast('Сохранено');
+}
+async function delTrade(){
+  const b=document.getElementById('delBtn');
+  if(b.textContent!=='Точно удалить?'){ b.textContent='Точно удалить?'; return }
+  const id=num(v('f-id')); await store.del('t_'+id);
+  trades=trades.filter(x=>x.id!==id); haptic('warning'); closeSheet(); renderAll(); toast('Удалено');
+}
+
+/* ---------- навигация ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+b.dataset.v));
+  document.getElementById('fab').style.display=b.dataset.v==='calc'?'none':'block';
+  if(b.dataset.v==='stats') renderStats();
+  window.scrollTo(0,0);
+});
+
+function renderAll(){ renderJournal(); renderTip(); renderCalcInputs(); calc(); if(document.getElementById('v-stats').classList.contains('on')) renderStats() }
+
+/* ---------- запуск ---------- */
+if(tg){
+  try{
+    tg.ready(); tg.expand();
+    tg.setHeaderColor && tg.setHeaderColor('#0f1520'); tg.setBackgroundColor && tg.setBackgroundColor('#0f1520');
+    tg.BackButton.onClick(closeSheet);
+    const u=tg.initDataUnsafe&&tg.initDataUnsafe.user; if(u) document.getElementById('uname').textContent=u.first_name||'Фокус';
+  }catch(e){}
+}
+load();
+</script>
+</body>
+</html>
